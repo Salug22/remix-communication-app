@@ -11,6 +11,7 @@ declare module "@remix-run/node" {
 }
 
 export default defineConfig({
+
   plugins: [
     remixPWA(),
     remix({

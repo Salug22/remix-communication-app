@@ -25,6 +25,17 @@ self.addEventListener("activate", (event) => {
   console.log("Service worker activated");
   event.waitUntil(self.clients.claim());
 });
+self.addEventListener("push", (event) => {
+  var _a;
+  console.log("Push event received:", event);
+  const data2 = ((_a = event.data) == null ? void 0 : _a.json()) || {};
+  const title = data2.title || "Default Notification Title";
+  const options = {
+    body: data2.body || "Default notification body",
+    icon: "/192x192.png"
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
 const entryWorker = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null
 }, Symbol.toStringTag, { value: "Module" }));
