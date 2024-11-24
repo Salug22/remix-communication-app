@@ -16,29 +16,14 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-// Push-Ereignis
-self.addEventListener('push', (event) => {
-  console.log('Push event received:', event);
+// Message-Ereignis: Simuliere Push-Benachrichtigung
+self.addEventListener('message', (event) => {
+  if (event.data?.type === 'PUSH_TEST') {
+    const { title, body, icon } = event.data.payload;
 
-  const data = event.data?.json() || {};
-  const title = data.title || 'Default Notification Title';
-  const options = {
-    body: data.body || 'Default notification body',
-    icon: '/192x192.png',
-  };
-
-  event.waitUntil(self.registration.showNotification(title, options));
-});
-
-self.addEventListener("message", (event) => {
-  if (event.data?.type === "PUSH_TEST") {
-    const data = JSON.parse(event.data.payload);
-    const title = data.title || "Default Title";
-    const options = {
-      body: data.body || "Default Body",
-      icon: data.icon || "/192x192.png",
-    };
-
-    self.registration.showNotification(title, options);
+    self.registration.showNotification(title || 'Default Title', {
+      body: body || 'Default Body',
+      icon: icon || '/192x192.png',
+    });
   }
 });
