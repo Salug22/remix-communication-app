@@ -29,3 +29,16 @@ self.addEventListener('push', (event) => {
 
   event.waitUntil(self.registration.showNotification(title, options));
 });
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "PUSH_TEST") {
+    const data = JSON.parse(event.data.payload);
+    const title = data.title || "Default Title";
+    const options = {
+      body: data.body || "Default Body",
+      icon: data.icon || "/192x192.png",
+    };
+
+    self.registration.showNotification(title, options);
+  }
+});

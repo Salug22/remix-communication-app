@@ -37,7 +37,7 @@ export default function Index() {
                     <header>
                         <h1 className="text-2xl font-bold">Push Test App</h1>
                     </header>
-                    <Button onClick={sendPush}>Send Push</Button>
+                    <Button onClick={sendPush}>Send Push2</Button>
                 </div>
             </div>
     );
