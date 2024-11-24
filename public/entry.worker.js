@@ -59,6 +59,7 @@ const route1 = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProper
 const assets = [
   "/192x192.png",
   "/512x512.png",
+  "/entry.worker.js",
   "/favicon.ico",
   "/logo-dark.png",
   "/logo-light.png",

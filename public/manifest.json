@@ -13,7 +13,7 @@
             "type": "image/png"
         }
     ],
-    "start_url": "/",
+    "start_url": "https://remix-communication-app.vercel.app/",
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#000000"
