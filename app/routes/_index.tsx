@@ -5,7 +5,6 @@ import { doc, setDoc, getDocs, collection } from "firebase/firestore";
 import db from "../firebase.config";
 import dotenv from "dotenv";
 
-
 dotenv.config();
 const API_KEY = process.env.OPENAI_API_KEY;
 export const meta: MetaFunction = () => {
