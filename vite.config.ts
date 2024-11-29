@@ -1,9 +1,7 @@
 import {vitePlugin as remix} from "@remix-run/dev";
-import {defineConfig, loadEnv} from "vite";
+import {defineConfig} from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
 import {remixPWA} from '@remix-pwa/dev'
-
-const env = loadEnv(mode, process.cwd(), '');
 
 
 declare module "@remix-run/node" {
@@ -13,9 +11,7 @@ declare module "@remix-run/node" {
 }
 
 export default defineConfig({
-    define: {
-        'process.env.OPENAI_API_KEY': JSON.stringify(env.OPENAI_API_KEY)
-    },
+
     plugins: [
         remixPWA(),
         remix({

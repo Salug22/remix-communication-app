@@ -1,12 +1,11 @@
-import type { MetaFunction } from "@remix-run/node";
+import { json, MetaFunction } from "@remix-run/node";
 import { Button } from "~/components/ui/button";
-import { useState, useEffect } from "react";
-import { doc, setDoc, getDocs, collection } from "firebase/firestore";
+import { useEffect, useState } from "react";
+import { collection, doc, getDocs, setDoc } from "firebase/firestore";
 import db from "../firebase.config";
-import dotenv from "dotenv";
+import { useLoaderData } from "@remix-run/react";
 
-dotenv.config();
-const API_KEY = process.env.OPENAI_API_KEY;
+// Meta information for the page
 export const meta: MetaFunction = () => {
     return [
         { title: "ChatGPT Integration" },
@@ -14,7 +13,17 @@ export const meta: MetaFunction = () => {
     ];
 };
 
+// Loader to fetch server-side environment variables
+export const loader = async () => {
+    return json({
+        apiKey: process.env.OPENAI_API_KEY,
+    });
+};
+
+// Main Component
 export default function Index() {
+    const { apiKey } = useLoaderData<typeof loader>(); // Access the API key from loader
+
     const [word, setWord] = useState("");
     const [definition, setDefinition] = useState("");
     const [example, setExample] = useState("");
@@ -22,7 +31,7 @@ export default function Index() {
     const [excludedWords, setExcludedWords] = useState<string[]>([]);
     const [error, setError] = useState("");
 
-    // Abrufen aller verwendeten Begriffe
+    // Fetch all excluded words from Firestore
     const fetchExcludedWords = async () => {
         try {
             const querySnapshot = await getDocs(collection(db, "excludedWords"));
@@ -32,11 +41,11 @@ export default function Index() {
             });
             setExcludedWords(words);
         } catch (err) {
-            console.error("Fehler beim Abrufen der ausgeschlossenen Wörter:", err);
+            console.error("Error fetching excluded words:", err);
         }
     };
 
-    // Speichert ein Wort in Firestore
+    // Save a word to Firestore
     const saveWordToFirestore = async (newWord: any) => {
         try {
             await setDoc(doc(db, "words", newWord.word), {
@@ -45,11 +54,11 @@ export default function Index() {
             });
             setExcludedWords((prev) => [...prev, newWord.word]);
         } catch (err) {
-            console.error("Fehler beim Speichern:", err);
+            console.error("Error saving word:", err);
         }
     };
 
-    // ChatGPT: Neues Wort generieren oder benutzerdefiniertes Wort suchen
+    // Fetch a new word using ChatGPT
     const fetchWord = async (customInput: string | null = null) => {
         const isCustom = customInput !== null;
         const term = isCustom ? customInput : "Gib mir ein neues Wort.";
@@ -73,7 +82,7 @@ export default function Index() {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    Authorization: `Bearer ${API_KEY}`,
+                    Authorization: `Bearer ${apiKey}`,
                 },
                 body: JSON.stringify({
                     model: "gpt-3.5-turbo",
@@ -84,7 +93,7 @@ export default function Index() {
                 }),
             });
 
-            if (!response.ok) throw new Error(`Fehler: ${response.status}`);
+            if (!response.ok) throw new Error(`Error: ${response.status}`);
             const data = await response.json();
             const jsonResponse = JSON.parse(data.choices[0].message.content);
 
@@ -101,12 +110,13 @@ export default function Index() {
             setExample(newWord.example);
             await saveWordToFirestore(newWord);
             setError("");
-        } catch (err) {
-            console.error("Fehler beim Abrufen:", err.message);
-            setError("Es gab einen Fehler. Bitte versuche es erneut.");
+        } catch (err: any) {
+            console.error("Error fetching word:", err.message);
+            setError("An error occurred. Please try again.");
         }
     };
 
+    // Fetch excluded words on component mount
     useEffect(() => {
         fetchExcludedWords();
     }, []);
@@ -117,35 +127,35 @@ export default function Index() {
                     <h1 className="text-2xl font-bold">ChatGPT Integration</h1>
                 </header>
 
-                {/* Neues Wort generieren */}
-                <Button onClick={() => fetchWord(null)}>Neues Wort generieren</Button>
+                {/* Generate a new word */}
+                <Button onClick={() => fetchWord(null)}>Generate New Word</Button>
 
-                {/* Benutzerdefiniertes Wort suchen */}
+                {/* Search for a custom word */}
                 <div className="flex gap-4">
                     <input
                             type="text"
                             value={customWord}
                             onChange={(e) => setCustomWord(e.target.value)}
-                            placeholder="Begriff eingeben"
+                            placeholder="Enter a word"
                             className="border p-2 rounded"
                     />
-                    <Button onClick={() => fetchWord(customWord)}>Begriff suchen</Button>
+                    <Button onClick={() => fetchWord(customWord)}>Search Word</Button>
                 </div>
 
-                {/* Ergebnis anzeigen */}
+                {/* Display the result */}
                 {word && (
                         <div className="mt-4">
-                            <h2 className="text-lg font-semibold">Begriff: {word}</h2>
+                            <h2 className="text-lg font-semibold">Word: {word}</h2>
                             <p>
                                 <strong>Definition:</strong> {definition}
                             </p>
                             <p>
-                                <strong>Beispielsatz:</strong> {example}
+                                <strong>Example:</strong> {example}
                             </p>
                         </div>
                 )}
 
-                {/* Fehlermeldung */}
+                {/* Display any errors */}
                 {error && <p className="text-red-500">{error}</p>}
             </div>
     );
