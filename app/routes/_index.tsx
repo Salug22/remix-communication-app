@@ -1,44 +1,60 @@
 import { json, MetaFunction } from "@remix-run/node";
 import { Button } from "~/components/ui/button";
 import { useEffect, useState } from "react";
-import { collection, doc, getDocs, setDoc } from "firebase/firestore";
+import { collection, doc, getDocs, setDoc, query, orderBy, limit } from "firebase/firestore";
 import db from "../firebase.config";
 import { useLoaderData } from "@remix-run/react";
+import { fetchChatGPT } from "~/lib/chatGPT";
+import { generateSystemMessage } from "~/utils/systemMessages";
+import {Badge} from "~/components/ui/badge";
 
-// Meta information for the page
-export const meta: MetaFunction = () => {
-    return [
-        { title: "ChatGPT Integration" },
-        { name: "description", content: "Generate and store words using ChatGPT." },
-    ];
+export const meta: MetaFunction = () => [
+    { title: "ChatGPT Integration" },
+    { name: "description", content: "Generate and store words using ChatGPT." },
+];
+
+type Word = {
+    word: string;
+    definition: string;
+    example: string;
+    date: string;
+    tag: string;
 };
 
-// Loader to fetch server-side environment variables
+// Loader für die API-Key und das zuletzt generierte Wort
 export const loader = async () => {
-    return json({
-        apiKey: process.env.OPENAI_API_KEY,
-    });
+    try {
+        // Holen des zuletzt generierten Wortes
+        const wordsQuery = query(
+                collection(db, "words"),
+                orderBy("createdAt", "desc"), // Nach Erstellungsdatum sortieren
+                limit(1) // Nur das neueste Wort abrufen
+        );
+        const querySnapshot = await getDocs(wordsQuery);
+        const latestWord = querySnapshot.docs[0]?.data() as Word | undefined;
+
+        return json({
+            apiKey: process.env.OPENAI_API_KEY,
+            latestWord: latestWord || null,
+        });
+    } catch (err) {
+        console.error("Error fetching latest word:", err);
+        return json({ apiKey: process.env.OPENAI_API_KEY, latestWord: null });
+    }
 };
 
-// Main Component
 export default function Index() {
-    const { apiKey } = useLoaderData<typeof loader>(); // Access the API key from loader
-
-    const [word, setWord] = useState("");
-    const [definition, setDefinition] = useState("");
-    const [example, setExample] = useState("");
+    const { apiKey, latestWord } = useLoaderData<typeof loader>();
     const [customWord, setCustomWord] = useState("");
     const [excludedWords, setExcludedWords] = useState<string[]>([]);
+    const [wordDetails, setWordDetails] = useState<Word | null>(latestWord); // Initialisiere mit dem neuesten Wort
     const [error, setError] = useState("");
 
-    // Fetch all excluded words from Firestore
+    // Fetch all excluded words
     const fetchExcludedWords = async () => {
         try {
-            const querySnapshot = await getDocs(collection(db, "excludedWords"));
-            const words: string[] = [];
-            querySnapshot.forEach((doc) => {
-                words.push(doc.data().word);
-            });
+            const querySnapshot = await getDocs(collection(db, "words"));
+            const words = querySnapshot.docs.map((doc) => doc.data().word);
             setExcludedWords(words);
         } catch (err) {
             console.error("Error fetching excluded words:", err);
@@ -46,11 +62,11 @@ export default function Index() {
     };
 
     // Save a word to Firestore
-    const saveWordToFirestore = async (newWord: any) => {
+    const saveWordToFirestore = async (newWord: Word) => {
         try {
             await setDoc(doc(db, "words", newWord.word), {
                 ...newWord,
-                createdAt: new Date(),
+                createdAt: new Date().toISOString(),
             });
             setExcludedWords((prev) => [...prev, newWord.word]);
         } catch (err) {
@@ -58,80 +74,56 @@ export default function Index() {
         }
     };
 
-    // Fetch a new word using ChatGPT
-    const fetchWord = async (customInput: string | null = null) => {
-        const isCustom = customInput !== null;
-        const term = isCustom ? customInput : "Gib mir ein neues Wort.";
+    // Fetch a word from ChatGPT
+    const fetchWordFromChatGPT = async (customInput: string | null) => {
         const excluded = excludedWords.join(", ");
-
-        const systemMessage = {
-            role: "system",
-            content: `Du bist ein Sprachassistent, der detaillierte Informationen zu einem Begriff liefert.
-        ${isCustom ? `Der Begriff ist: "${customInput}".` : ""}
-        Begriffe sollten anspruchsvoll, aber nicht zu akademisch sein. Die folgenden Begriffe wurden bereits verwendet: ${excluded}.
-        Antworte im JSON-Format:
-        {
-            "word": "Wort",
-            "definition": "Kurze, präzise Erklärung des Begriffs.",
-            "example": "Ein Satz, der zeigt, wie der Begriff verwendet werden kann."
-        }`,
-        };
+        const systemMessage = generateSystemMessage("word", excluded);
 
         try {
-            const response = await fetch("https://api.openai.com/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${apiKey}`,
-                },
-                body: JSON.stringify({
-                    model: "gpt-3.5-turbo",
-                    messages: [
-                        systemMessage,
-                        { role: "user", content: term },
-                    ],
-                }),
-            });
+            const data = await fetchChatGPT(apiKey, systemMessage, "system");
+            const response = JSON.parse(data.choices[0].message.content);
 
-            if (!response.ok) throw new Error(`Error: ${response.status}`);
-            const data = await response.json();
-            const jsonResponse = JSON.parse(data.choices[0].message.content);
-
-            const newWord = {
-                word: jsonResponse.word,
-                definition: jsonResponse.definition,
-                example: jsonResponse.example,
+            const newWord: Word = {
+                word: response.word,
+                definition: response.definition,
+                example: response.example,
                 date: new Date().toLocaleDateString("de-DE"),
-                tag: isCustom ? "custom" : "generated",
+                tag: customInput ? "custom" : "generated",
             };
 
-            setWord(newWord.word);
-            setDefinition(newWord.definition);
-            setExample(newWord.example);
+            setWordDetails(newWord); // Aktualisiere den neuesten Zustand
             await saveWordToFirestore(newWord);
-            setError("");
-        } catch (err: any) {
-            console.error("Error fetching word:", err.message);
-            setError("An error occurred. Please try again.");
+        } catch (err) {
+            setError("Error fetching word from ChatGPT.");
+            console.error(err);
         }
     };
 
-    // Fetch excluded words on component mount
     useEffect(() => {
         fetchExcludedWords();
     }, []);
 
     return (
-            <div className="flex flex-col items-center gap-8 p-4">
-                <header>
-                    <h1 className="text-2xl font-bold">ChatGPT Integration</h1>
-                </header>
+            <div className="container m-auto">
+                <h1 className="text-2xl font-bold mb-4">Wort des Tages</h1>
 
-                {/* Generate a new word */}
-                <Button onClick={() => fetchWord(null)}>Generate New Word</Button>
+                {wordDetails && (
+                        <div className="mt-4 p-4 bg-gray-800">
+                            <h2 className="text-lg font-semibold flex pb-2 justify-between">{wordDetails.word}<Badge className="ml-auto" variant="secondary">{wordDetails.tag}</Badge></h2>
+                            <p>
+                                <strong>Definition:</strong><br/> {wordDetails.definition}
+                            </p>
+                            <p>
+                                <strong>Beispiel:</strong><br/> {wordDetails.example}
+                            </p>
+                        </div>
+                )}
 
-                {/* Search for a custom word */}
-                <div className="flex gap-4">
+                <Button variant="secondary" onClick={() => fetchWordFromChatGPT(null)} className="mt-4">
+                    Neues Wort generieren
+                </Button>
+
+                <div className="flex gap-4 mt-4">
                     <input
                             type="text"
                             value={customWord}
@@ -139,24 +131,10 @@ export default function Index() {
                             placeholder="Enter a word"
                             className="border p-2 rounded"
                     />
-                    <Button onClick={() => fetchWord(customWord)}>Search Word</Button>
+                    <Button onClick={() => fetchWordFromChatGPT(customWord)}>Search Word</Button>
                 </div>
 
-                {/* Display the result */}
-                {word && (
-                        <div className="mt-4">
-                            <h2 className="text-lg font-semibold">Word: {word}</h2>
-                            <p>
-                                <strong>Definition:</strong> {definition}
-                            </p>
-                            <p>
-                                <strong>Example:</strong> {example}
-                            </p>
-                        </div>
-                )}
-
-                {/* Display any errors */}
-                {error && <p className="text-red-500">{error}</p>}
+                {error && <p className="text-red-500 mt-4">{error}</p>}
             </div>
     );
 }
