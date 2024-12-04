@@ -1,11 +1,10 @@
 import { json, MetaFunction } from "@remix-run/node";
 import { Button } from "~/components/ui/button";
 import { useState } from "react";
-import { doc, setDoc } from "firebase/firestore";
-import db from "../firebase.config";
 import { useLoaderData } from "@remix-run/react";
 import { fetchChatGPT } from "~/lib/chatGPT";
 import { generateSystemMessage } from "~/utils/systemMessages";
+import { saveToFirestore } from "~/helper/firestoreHelpers"; // Import der Helper-Funktion
 
 export const meta: MetaFunction = () => [
     { title: "Textkorrektur mit Fehleranalyse" },
@@ -13,17 +12,16 @@ export const meta: MetaFunction = () => [
 ];
 
 type Correction = {
-    originalText: string; // Der ursprüngliche Text
-    correctedText: string; // Der korrigierte Text
-    stylised: string; // Der korrigierte Text
+    originalText: string;
+    correctedText: string;
+    stylised: string;
     corrections: {
-        error: string; // Beschreibung des Fehlers
-        suggestion: string; // Verbesserungsvorschlag
-    }[]; // Liste der Fehler und Korrekturen
-    date: string; // Datum der Korrektur
+        error: string;
+        suggestion: string;
+    }[];
+    date: string;
 };
 
-// Loader für den API-Key
 export const loader = async () => {
     return json({
         apiKey: process.env.OPENAI_API_KEY,
@@ -35,18 +33,6 @@ export default function TextCorrection() {
     const [inputText, setInputText] = useState("");
     const [correctionDetails, setCorrectionDetails] = useState<Correction | null>(null);
     const [error, setError] = useState("");
-
-    // Speichert die Korrektur in Firestore
-    const saveCorrectionToFirestore = async (correction: Correction) => {
-        try {
-            await setDoc(doc(db, "corrections", correction.date), {
-                ...correction,
-                date: new Date().toISOString(),
-            });
-        } catch (err) {
-            console.error("Error saving correction:", err);
-        }
-    };
 
     // Holt die Korrektur von ChatGPT
     const fetchCorrectionDetails = async (text: string) => {
@@ -65,9 +51,12 @@ export default function TextCorrection() {
             };
 
             setCorrectionDetails(newCorrection); // Zeige die Korrektur und Fehleranalyse an
-            await saveCorrectionToFirestore(newCorrection); // Optional: Speichere die Korrektur
+
+            // Speichere die Korrektur in Firestore
+            const id = `${Date.now()}`; // Dokument-ID, hier basierend auf Zeitstempel
+            await saveToFirestore("corrections", id, newCorrection); // Verwende die ausgelagerte Speicherfunktion
         } catch (err) {
-            setError("Error fetching correction details.");
+            setError("Fehler beim Abrufen der Korrekturdaten.");
             console.error(err);
         }
     };
@@ -93,25 +82,25 @@ export default function TextCorrection() {
                         <div className="mt-4 p-4 bg-gray-800 text-white rounded">
                             <h2 className="text-lg font-semibold">Ergebnisse</h2>
                             <p>
-                                <strong>Original:</strong><br/>
+                                <strong>Original:</strong><br />
                                 {correctionDetails.originalText}
                             </p>
                             <p className="mt-2">
-                                <strong>Korrigierter Text:</strong><br/>
+                                <strong>Korrigierter Text:</strong><br />
                                 {correctionDetails.correctedText}
                             </p>
-                            {correctionDetails.stylised ? (
+                            {correctionDetails.stylised && (
                                     <p className="mt-2">
-                                        <strong>Besserer Stil:</strong><br/>
+                                        <strong>Besserer Stil:</strong><br />
                                         {correctionDetails.stylised}
                                     </p>
-                            ): null}
+                            )}
                             <h3 className="text-lg font-semibold mt-4">Fehleranalyse:</h3>
                             <ul className="list-disc pl-6">
-                            {correctionDetails.corrections.length > 0 ? (
+                                {correctionDetails.corrections.length > 0 ? (
                                         correctionDetails.corrections.map((correction, index) => (
                                                 <li key={index} className="mt-2">
-                                                    <strong>Fehler:</strong> {correction.error}<br/>
+                                                    <strong>Fehler:</strong> {correction.error}<br />
                                                     <strong>Vorschlag:</strong> {correction.suggestion}
                                                 </li>
                                         ))

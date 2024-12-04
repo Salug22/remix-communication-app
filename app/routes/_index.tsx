@@ -1,12 +1,13 @@
 import { json, MetaFunction } from "@remix-run/node";
 import { Button } from "~/components/ui/button";
 import { useEffect, useState } from "react";
-import { collection, doc, getDocs, setDoc, query, orderBy, limit } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { saveToFirestore } from "~/helper/firestoreHelpers"; // Import der ausgelagerten Speicherfunktion
 import db from "../firebase.config";
 import { useLoaderData } from "@remix-run/react";
 import { fetchChatGPT } from "~/lib/chatGPT";
 import { generateSystemMessage } from "~/utils/systemMessages";
-import {Badge} from "~/components/ui/badge";
+import { Badge } from "~/components/ui/badge";
 
 export const meta: MetaFunction = () => [
     { title: "ChatGPT Integration" },
@@ -47,7 +48,7 @@ export default function Index() {
     const { apiKey, latestWord } = useLoaderData<typeof loader>();
     const [customWord, setCustomWord] = useState("");
     const [excludedWords, setExcludedWords] = useState<string[]>([]);
-    const [wordDetails, setWordDetails] = useState<Word | null>(latestWord); // Initialisiere mit dem neuesten Wort
+    const [wordDetails, setWordDetails] = useState<Word | null>(latestWord);
     const [error, setError] = useState("");
 
     // Fetch all excluded words
@@ -58,19 +59,6 @@ export default function Index() {
             setExcludedWords(words);
         } catch (err) {
             console.error("Error fetching excluded words:", err);
-        }
-    };
-
-    // Save a word to Firestore
-    const saveWordToFirestore = async (newWord: Word) => {
-        try {
-            await setDoc(doc(db, "words", newWord.word), {
-                ...newWord,
-                createdAt: new Date().toISOString(),
-            });
-            setExcludedWords((prev) => [...prev, newWord.word]);
-        } catch (err) {
-            console.error("Error saving word:", err);
         }
     };
 
@@ -91,8 +79,11 @@ export default function Index() {
                 tag: customInput ? "custom" : "generated",
             };
 
-            setWordDetails(newWord); // Aktualisiere den neuesten Zustand
-            await saveWordToFirestore(newWord);
+            setWordDetails(newWord);
+
+            // Speichern des neuen Worts in Firestore
+            const id = newWord.word;
+            await saveToFirestore("words", id, newWord);
         } catch (err) {
             setError("Error fetching word from ChatGPT.");
             console.error(err);
@@ -109,12 +100,15 @@ export default function Index() {
 
                 {wordDetails && (
                         <div className="mt-4 p-4 bg-gray-800">
-                            <h2 className="text-lg font-semibold flex pb-2 justify-between">{wordDetails.word}<Badge className="ml-auto" variant="secondary">{wordDetails.tag}</Badge></h2>
+                            <h2 className="text-lg font-semibold flex pb-2 justify-between">
+                                {wordDetails.word}
+                                <Badge className="ml-auto" variant="secondary">{wordDetails.tag}</Badge>
+                            </h2>
                             <p>
-                                <strong>Definition:</strong><br/> {wordDetails.definition}
+                                <strong>Definition:</strong><br /> {wordDetails.definition}
                             </p>
                             <p>
-                                <strong>Beispiel:</strong><br/> {wordDetails.example}
+                                <strong>Beispiel:</strong><br /> {wordDetails.example}
                             </p>
                         </div>
                 )}

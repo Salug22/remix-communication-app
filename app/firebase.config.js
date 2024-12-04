@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getMessaging, isSupported } from "firebase/messaging";
 
 const firebaseConfig = {
     apiKey: "AIzaSyB-U56d07yr7i5Pb7UF6eDFqOyvKSKIvKg",
@@ -13,5 +14,13 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+export const messaging = (async () => {
+    if (typeof window !== "undefined" && (await isSupported())) {
+        return getMessaging(app);
+    } else {
+        console.warn("Firebase Messaging wird nicht unterstützt oder läuft außerhalb des Browsers.");
+        return null;
+    }
+})();
 
 export default db;

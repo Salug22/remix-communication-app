@@ -1,12 +1,10 @@
 import { json, MetaFunction } from "@remix-run/node";
 import { Button } from "~/components/ui/button";
 import { useState } from "react";
-import { collection, doc, setDoc } from "firebase/firestore";
-import db from "../firebase.config";
 import { useLoaderData } from "@remix-run/react";
 import { fetchChatGPT } from "~/lib/chatGPT";
-import {generateSystemMessage} from "~/utils/systemMessages";
-import {Badge} from "~/components/ui/badge";
+import { generateSystemMessage } from "~/utils/systemMessages";
+import { saveToFirestore } from "~/helper/firestoreHelpers"; // Import der ausgelagerten Speicherfunktion
 
 export const meta: MetaFunction = () => [
     { title: "Synonyme Generator" },
@@ -32,18 +30,6 @@ export default function SynonymGenerator() {
     const [generatedSynonym, setGeneratedSynonym] = useState<Synonyme | null>(null);
     const [error, setError] = useState("");
 
-    // Save a synonym to Firestore
-    const saveSynonymToFirestore = async (newSynonym: Synonyme) => {
-        try {
-            await setDoc(doc(db, "synonyms", newSynonym.word), {
-                ...newSynonym,
-                date: new Date().toISOString(),
-            });
-        } catch (err) {
-            console.error("Error saving synonym:", err);
-        }
-    };
-
     // Fetch a synonym from ChatGPT
     const fetchSynonymFromChatGPT = async (word: string) => {
         const systemMessage = generateSystemMessage("synonym", word); // Typ "synonym" verwenden
@@ -59,7 +45,10 @@ export default function SynonymGenerator() {
             };
 
             setGeneratedSynonym(newSynonym); // Zeige das generierte Synonyme an
-            await saveSynonymToFirestore(newSynonym);
+
+            // Speichern des Synonyms in Firestore
+            const id = `${Date.now()}-${word}`; // Dokument-ID, basierend auf Zeitstempel und Wort
+            await saveToFirestore("synonyms", id, newSynonym); // Ausgelagerte Speicherfunktion verwenden
         } catch (err) {
             setError("Error fetching synonym from ChatGPT.");
             console.error(err);
@@ -87,7 +76,7 @@ export default function SynonymGenerator() {
                         <div className="mt-4 p-4 bg-gray-800">
                             <h2 className="text-lg font-semibold flex pb-2 justify-between">{generatedSynonym.word}</h2>
                             <p>
-                                <strong>Synonyme:</strong><br/> {generatedSynonym.synonym}
+                                <strong>Synonyme:</strong><br /> {generatedSynonym.synonym}
                             </p>
                         </div>
                 )}

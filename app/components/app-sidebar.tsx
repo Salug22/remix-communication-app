@@ -1,20 +1,14 @@
 import * as React from "react"
 import {
-    BookOpen,
-    Bot,
+    Cog,
     Command,
-    Frame, GitCompareArrows,
-    LifeBuoy, ListCheckIcon,
-    Map,
-    PieChart,
-    Send,
-    Settings2,
+   GitCompareArrows,
+    ListCheckIcon,
+
     WholeWordIcon,
 } from "lucide-react"
 
 import {NavMain} from "~/components/nav-main"
-import {NavProjects} from "~/components/nav-projects"
-import {NavSecondary} from "~/components/nav-secondary"
 import {
     Sidebar,
     SidebarContent,
@@ -73,6 +67,18 @@ const data = {
                     title: "Liste",
                     url: "/synonyme-list",
                 }
+            ],
+        },
+        {
+            title: "Config",
+            url: "#",
+            icon: Cog,
+            isActive: true,
+            items: [
+                {
+                    title: "Firebase config",
+                    url: "/config",
+                },
             ],
         },
     ],
